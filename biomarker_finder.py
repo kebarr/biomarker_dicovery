@@ -16,6 +16,9 @@ Assume that header is always 2 lines, first line, ignore
 
 class Subtype(object):
     def __init__(self, name, condition_names):
+        """Holder for subtype data. 
+            Assumes that ordering of condition names, conditions, and potential biomarkers are always the same.
+        """
         self.name = name
         self.condition_names = condition_names
         self.conditions = []
@@ -26,6 +29,10 @@ class Subtype(object):
 
     def add_potential_biomarkers(self, list_of_potential_biomarkers):
         self.potential_biomarkers.append(list_of_potential_biomarkers)
+
+    def get_condition(self, condition_name):
+        index = self.condition_names.index(condition_name)
+        return self.conditions[index]
 
 class Type(object): # e.g. type of cancer. root folder
     def __init__(self, folder_name):
@@ -46,6 +53,11 @@ class Type(object): # e.g. type of cancer. root folder
             subtypes.append(Subtype(subtype_name, subtype_conditions))
         return subtypes
 
+    def get_subtype(self, subtype_name):
+        for subtype in self.subtypes:
+            if subtype.name == subtype_name:
+                return subtype
+        raise ValueError("No subtype called %s" % (subtype_name))
 
 class BiomarkerFinder(object):
     def __init__(self, folder_name):
@@ -55,17 +67,12 @@ class BiomarkerFinder(object):
         self.prepare_data()
 
     def prepare_data(self):
-        subtypes = []
         for subtype in self.type.subtypes:
             print(subtype.name)
             for condition in subtype.condition_names:
                 spreadsheet_filename = self.type.folder_name + '/' + subtype.name + '/' + condition
                 spreadsheet = self.prepare_spreadsheet(spreadsheet_filename)
                 subtype.add_data(spreadsheet)
-                print(len(subtype.conditions))
-            subtypes.append(subtype)
-        print(subtypes)
-        self.type.subtypes = subtypes
 
     def prepare_spreadsheet(self, filename):
         # take both rows as header, then make columns manually, first 12 are from second row, afterwards, from first
@@ -77,15 +84,16 @@ class BiomarkerFinder(object):
         sheet = sheet[sheet['Anova (p)'] < 0.05] # filter by p value
         cond1 = sheet.filter(like="Group A", axis=1) 
         cond2 = sheet.filter(like="Group B", axis=1)
-        sheet['mean1'] = cond1.mean(axis=1) # mean of cond1
-        sheet['mean2'] = cond2.mean(axis=1) # mean of cond2
-        filtered = sheet[~((sheet['mean1'] < 50000) & (sheet['mean2'] < 50000))]
+        sheet['meanA'] = cond1.mean(axis=1) # mean of cond1
+        sheet['meanB'] = cond2.mean(axis=1) # mean of cond2
+        filtered = sheet[~((sheet['meanA'] < 50000) & (sheet['meanB'] < 50000))]
         filtered['down'] = np.where(filtered['Highest mean condition'] == 'Group A', True, False)
         filtered['up'] = np.where(filtered['Highest mean condition'] == 'Group A', False, True)
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
         filtered = filtered.set_index('Accession')
         return filtered
 
+    
     def find_potential_biomarkers(self, condition_of_interest, other_conditions):
         biomarkers_in_other_conditions = [] # biomarkers to exclude are from other conditions
         for df in other_conditions:
@@ -112,6 +120,24 @@ class BiomarkerFinder(object):
                 potential_biomarkers.append(row)
         return potential_biomarkers
 
+    def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2'):
+        # from flow diagram- Control is group A - which corresponds to meanA 
+        # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
+        # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
+        subtype = self.type.get_subtype(subtype_name)
+        condition_sheet_name1 = subtype_name + ' ' + condition_name1 + '.xlsx'
+        condition_sheet_name2 = subtype_name + ' ' + condition_name2 + '.xlsx'
+        for i in range(len(subtype.conditions)):
+            print(subtype.condition_names[i])
+            if subtype.condition_names[i] == condition_sheet_name1:
+                condition = subtype.conditions[i]
+            elif subtype.condition_names[i] == condition_sheet_name2:
+                other_condition = subtype.conditions[i]
+        potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
+        print(len(potential_biomarkers))
+
+
+    # this doesn't actually represent flow diagram... it just does all against all comparison
     def find_all_potential_biomarkers(self):
         for i, subtype in enumerate(self.type.subtypes):
             other_subtypes = [st for j, st in enumerate(self.type.subtypes) if j != i]
