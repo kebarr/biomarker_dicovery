@@ -14,32 +14,37 @@ Assume that header is always 2 lines, first line, ignore
 
 """
 
-class Type(object): # e.g. type of cancer. root folder.
+class Subtype(object):
+    def __init__(self, name, condition_names):
+        self.name = name
+        self.condition_names = condition_names
+        self.conditions = []
+        self.potential_biomarkers = []
+
+    def add_data(self, df):
+        self.conditions.append(df)
+
+    def add_potential_biomarkers(self, list_of_potential_biomarkers):
+        self.potential_biomarkers.append(list_of_potential_biomarkers)
+
+class Type(object): # e.g. type of cancer. root folder
     def __init__(self, folder_name):
         self.folder_name = folder_name
-        # may not actually need this as we're only really concerned with getting the filenames... 
-        # need to trust that the folder structure and naming is correct anyway
         self.subtypes = self.walk_folder()
 
     def walk_folder(self):
         folder = self.folder_name
         subfolders = [x for x in os.walk(folder)]
         print(subfolders)
-        subtypes = {}
+        subtypes = []
         for i in range(1, len(subfolders)):
             # name of subtype, i.e. folder with condition sheets in it 
             subtype_name = subfolders[0][1][i-1]
             print(subtype_name)
             subtype_conditions = subfolders[i][2]
             print(subtype_conditions)
-            subtypes[subtype_name] = subtype_conditions
+            subtypes.append(Subtype(subtype_name, subtype_conditions))
         return subtypes
-
-    def get_data_file_name(self, subtype, condition):
-        subtype_name = 'Subtype ' + str(subtype)
-        condition_name = subtype_name + ' Condition' + str(condition) + '.xlsx'
-        return self.folder_name + '/' + subtype_name + '/' + condition_name
-
 
 
 class BiomarkerFinder(object):
@@ -50,14 +55,14 @@ class BiomarkerFinder(object):
         self.prepare_data()
 
     def prepare_data(self):
-        number_subtypes = len(self.type.subtypes.keys())
-        subtypes = [[] for i in range(number_subtypes)]
-        for i, subtype in enumerate(self.type.subtypes.keys()):
-            for spreadsheet in self.type.subtypes[subtype]:
-                spreadsheet_filename = self.type.folder_name + '/' + subtype + '/' + spreadsheet
+        subtypes = []
+        for subtype in self.type.subtypes:
+            for condition in subtype.conditions:
+                spreadsheet_filename = self.type.folder_name + '/' + subtype.name + '/' + condition
                 spreadsheet = self.prepare_spreadsheet(spreadsheet_filename)
-                subtypes[i].append(spreadsheet)
-        self.subtypes = subtypes
+                subtype.add_data(spreadsheet)
+                subtypes.append(subtype)
+        self.type.subtypes = subtypes
 
     def prepare_spreadsheet(self, filename):
         # take both rows as header, then make columns manually, first 12 are from second row, afterwards, from first
@@ -78,18 +83,18 @@ class BiomarkerFinder(object):
         filtered = filtered.set_index('Accession')
         return filtered
 
-    def find_potential_biomarkers(self, df_of_potential_biomarkers, dfs_of_biomarkers_to_exclude):
-        to_exclude = []
-        for df in dfs_of_biomarkers_to_exclude:
-            to_exclude.extend(list(df.index))
-        potential_biomarkers = df_of_potential_biomarkers[~df_of_potential_biomarkers.index.isin(to_exclude)]
-        shared_proteins = df_of_potential_biomarkers[df_of_potential_biomarkers.index.isin(to_exclude)]
+    def find_potential_biomarkers(self, condition_of_interest, other_conditions):
+        biomarkers_in_other_conditions = [] # biomarkers to exclude are from other conditions
+        for df in other_conditions:
+            biomarkers_in_other_conditions.extend(list(df.index))
+        potential_biomarkers = condition_of_interest[~condition_of_interest.index.isin(biomarkers_in_other_conditions)]
+        shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
         # more compilcated with list of dataframes
         for i, row in shared_proteins.iterrows():
             expr = row['up']
             # iterate over each df to compare expression, if expression is different in all, accept
             accept = True
-            for df in dfs_of_biomarkers_to_exclude:
+            for df in other_conditions:
                 try:
                     expr_other = shared_proteins.loc[i]['up']
                     if expr == expr_other:
@@ -103,18 +108,21 @@ class BiomarkerFinder(object):
         return potential_biomarkers
 
     def find_all_potential_biomarkers(self):
-        # data is all sheets
-        for i, sheet in self.data:
-            if i != len(self.data) - 1:
-                to_compare = self.data[:i] + self.data[i+1:]
-            else:
-                to_compare = self.data[:-1]
-            potential_biomarkers = self.find_potential_biomarkers(sheet, to_compare)
-            # ones we have excluded are those indexes in sheet that are not in potential biomarkers
-            # ideally want ones that are excluded based on comparison with others only, 
-            excluded = sheet[~sheet.index.isin(potential_biomarkers.index)]
-            self.potential_biomarkers.append(potential_biomarkers)
-            self.excluded.append(excluded)
+        for i, subtype in enumerate(self.type.subtypes):
+            other_subtypes = [st for j, st in enumerate(self.type.subtypes) if j != i]
+            to_compare_other_subtypes = [cond for cond in st.conditions for subtype in other_subtypes]
+            for k, condition in subtype.conditions:
+                if i != len(subtype.conditions) - 1:
+                    to_compare = subtype.conditions[:i] + subtype.conditions[i+1:]
+                else:
+                    to_compare = self.data[:-1]
+                to_compare.extend(to_compare_other_subtypes)
+                potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
+                # ones we have excluded are those indexes in sheet that are not in potential biomarkers
+                # ideally want ones that are excluded based on comparison with others only, 
+                excluded = sheet[~sheet.index.isin(potential_biomarkers.index)]
+                self.potential_biomarkers.append(potential_biomarkers)
+                self.excluded.append(excluded)
 
     def output(self, output_filename):
         # output potential biomarkers and excluded
