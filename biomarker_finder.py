@@ -147,15 +147,17 @@ class BiomarkerFinder(object):
         potential_biomarkers = self.find_potential_biomarkers(potential_biomarkers, to_compare)
         print(len(potential_biomarkers))
         print(potential_biomarkers)
-        subtype.add_potential_biomarkers(condition_name1, potential_biomarkers, out_filename)
+        subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
+        self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
 
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
-            out_filename = self.type.folder_name + '/' + subtype_name + '/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.xlsx'
+            out_filename = self.type.folder_name + '/' + subtype_name + '/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.csv'
+        potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
         potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
-        potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', 0, expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
-        out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up']]
+        out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up/down']]
+        print(out_df.head())
         out_df.to_csv(out_filename)
 
     # this doesn't actually represent flow diagram... it just does all against all comparison
