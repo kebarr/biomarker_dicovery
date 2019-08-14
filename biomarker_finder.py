@@ -57,11 +57,14 @@ class BiomarkerFinder(object):
     def prepare_data(self):
         subtypes = []
         for subtype in self.type.subtypes:
-            for condition in subtype.conditions:
+            print(subtype.name)
+            for condition in subtype.condition_names:
                 spreadsheet_filename = self.type.folder_name + '/' + subtype.name + '/' + condition
                 spreadsheet = self.prepare_spreadsheet(spreadsheet_filename)
                 subtype.add_data(spreadsheet)
-                subtypes.append(subtype)
+                print(len(subtype.conditions))
+            subtypes.append(subtype)
+        print(subtypes)
         self.type.subtypes = subtypes
 
     def prepare_spreadsheet(self, filename):
@@ -88,7 +91,9 @@ class BiomarkerFinder(object):
         for df in other_conditions:
             biomarkers_in_other_conditions.extend(list(df.index))
         potential_biomarkers = condition_of_interest[~condition_of_interest.index.isin(biomarkers_in_other_conditions)]
+        print("len potential biomarkers: %d" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
+        print("len shared_proteins: %d" % (len(shared_proteins)))
         # more compilcated with list of dataframes
         for i, row in shared_proteins.iterrows():
             expr = row['up']
@@ -110,17 +115,21 @@ class BiomarkerFinder(object):
     def find_all_potential_biomarkers(self):
         for i, subtype in enumerate(self.type.subtypes):
             other_subtypes = [st for j, st in enumerate(self.type.subtypes) if j != i]
-            to_compare_other_subtypes = [cond for cond in st.conditions for subtype in other_subtypes]
-            for k, condition in subtype.conditions:
-                if i != len(subtype.conditions) - 1:
-                    to_compare = subtype.conditions[:i] + subtype.conditions[i+1:]
+            print("len other subtypes: %d " % len(other_subtypes))
+            to_compare_other_subtypes = [cond for st in other_subtypes for cond in st.conditions]
+            for k, condition in enumerate(subtype.conditions):
+                print('k ', k, ' len condition: ', len(condition))
+                if k != len(subtype.conditions) - 1:
+                    to_compare = subtype.conditions[:k] + subtype.conditions[k+1:]
                 else:
-                    to_compare = self.data[:-1]
+                    to_compare = subtype.conditions[:-1]
                 to_compare.extend(to_compare_other_subtypes)
+                print(len(to_compare))
                 potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
                 # ones we have excluded are those indexes in sheet that are not in potential biomarkers
                 # ideally want ones that are excluded based on comparison with others only, 
-                excluded = sheet[~sheet.index.isin(potential_biomarkers.index)]
+                excluded = condition[~condition.index.isin(potential_biomarkers.index)]
+                subtype.potential_biomarkers.append(potential_biomarkers)
                 self.potential_biomarkers.append(potential_biomarkers)
                 self.excluded.append(excluded)
 
