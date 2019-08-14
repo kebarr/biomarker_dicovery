@@ -44,13 +44,18 @@ class Type(object): # e.g. type of cancer. root folder
         folder = self.folder_name
         subfolders = [x for x in os.walk(folder)]
         print(subfolders)
+        print(subfolders[0][1])
         subtypes = []
-        for i in range(1, len(subfolders)):
+        for i in range(len(subfolders[0][1])):
             # name of subtype, i.e. folder with condition sheets in it 
-            subtype_name = subfolders[0][1][i-1]
+            subtype_name = subfolders[0][1][i]
             print(subtype_name)
-            subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[i][2]]
-            print(subtype_conditions)
+            if not os.path.exists(subfolders[i+1][0] + '/results'):
+                print("making dir ", subfolders[i+1][0] + '/results')
+                os.mkdir(subfolders[i+1][0] + '/results')
+            print(subfolders[i+1][2])
+            subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[i+1][2]]
+            print('conditions: ', subtype_conditions)
             subtypes.append(Subtype(subtype_name, subtype_conditions))
         return subtypes
 
@@ -152,7 +157,7 @@ class BiomarkerFinder(object):
 
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
-            out_filename = self.type.folder_name + '/' + subtype_name + '/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.csv'
+            out_filename = self.type.folder_name + '/' + subtype_name + '/results/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.csv'
         potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
         potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
