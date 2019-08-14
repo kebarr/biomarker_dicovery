@@ -88,8 +88,7 @@ class BiomarkerFinder(object):
         sheet['meanA'] = cond1.mean(axis=1) # mean of cond1
         sheet['meanB'] = cond2.mean(axis=1) # mean of cond2
         filtered = sheet[~((sheet['meanA'] < 50000) & (sheet['meanB'] < 50000))]
-        filtered['down'] = np.where(filtered['Highest mean condition'] == 'Group A', True, False)
-        filtered['up'] = np.where(filtered['Highest mean condition'] == 'Group A', False, True)
+        filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
         filtered = filtered.set_index('Accession')
         return filtered
@@ -105,12 +104,12 @@ class BiomarkerFinder(object):
         print("len shared_proteins: %d" % (len(shared_proteins)))
         # more compilcated with list of dataframes
         for i, row in shared_proteins.iterrows():
-            expr = row['up']
+            expr = row['up/down']
             # iterate over each df to compare expression, if expression is different in all, accept
             accept = True
             for df in other_conditions:
                 try:
-                    expr_other = shared_proteins.loc[i]['up']
+                    expr_other = shared_proteins.loc[i]['up/down']
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
                         accept = False
@@ -121,7 +120,9 @@ class BiomarkerFinder(object):
                 potential_biomarkers.append(row)
         return potential_biomarkers
 
-    def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3']):
+    def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
+        if subtype_name in other_subtypes:
+            raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
         # from flow diagram- Control is group A - which corresponds to meanA 
         # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
         # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
@@ -146,7 +147,16 @@ class BiomarkerFinder(object):
         potential_biomarkers = self.find_potential_biomarkers(potential_biomarkers, to_compare)
         print(len(potential_biomarkers))
         print(potential_biomarkers)
-        subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
+        subtype.add_potential_biomarkers(condition_name1, potential_biomarkers, out_filename)
+
+    def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
+        if not out_filename:
+            out_filename = self.type.folder_name + '/' + subtype_name + '/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.xlsx'
+        potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
+        potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
+        potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', 0, expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
+        out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up']]
+        out_df.to_csv(out_filename)
 
     # this doesn't actually represent flow diagram... it just does all against all comparison
     def find_all_potential_biomarkers(self):
