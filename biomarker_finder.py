@@ -47,9 +47,21 @@ class BiomarkerFinder(object):
         self.excluded = []
         self.potential_biomarkers = []
         self.type = Type(folder_name)
-        
+        self.prepare_data()
+
+    def prepare_data(self):
+        number_subtypes = len(self.type.subtypes.keys())
+        subtypes = [[] for i in range(number_subtypes)]
+        for i, subtype in enumerate(self.type.subtypes.keys()):
+            for spreadsheet in self.type.subtypes[subtype]:
+                spreadsheet_filename = self.type.folder_name + '/' + subtype + '/' + spreadsheet
+                spreadsheet = self.prepare_spreadsheet(spreadsheet_filename)
+                subtypes[i].append(spreadsheet)
+        self.subtypes = subtypes
+
     def prepare_spreadsheet(self, filename):
         # take both rows as header, then make columns manually, first 12 are from second row, afterwards, from first
+        # read excel is insanely slow!!!!!
         sheet = pd.read_excel(filename, header=[1,2]) # sheet name doesn't matter as there will only be one sheet
         colnames = [sheet.columns[i][1] for i in range(12)] + [sheet.columns[i][0] + "_" + str(i) for i in range(12, len(sheet.columns))]
         sheet.columns = colnames 
@@ -78,7 +90,7 @@ class BiomarkerFinder(object):
             # iterate over each df to compare expression, if expression is different in all, accept
             accept = True
             for df in dfs_of_biomarkers_to_exclude:
-                t§ry:
+                try:
                     expr_other = shared_proteins.loc[i]['up']
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
