@@ -44,16 +44,22 @@ class Type(object): # e.g. type of cancer. root folder
         folder = self.folder_name
         subfolders = [x for x in os.walk(folder)]
         subtypes = []
+        print(subfolders)
         for i in range(len(subfolders[0][1])):
+            # still wrong!!! because it adds results, this changes index
             # name of subtype, i.e. folder with condition sheets in it 
             subtype_name = subfolders[0][1][i]
-            print("subtype: ", str(subtype_name))
-            if not os.path.exists(folder + '/' + subtype_name + '/results'):
-                print("making dir ", folder + '/' + subtype_name  + '/results')
-                os.mkdir(folder + '/' + subtype_name + '/results')
-            subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[i+1][2]]
-            print('conditions: ', subtype_conditions)
-            subtypes.append(Subtype(subtype_name, subtype_conditions))
+            for j in range(1, len(subfolders)):
+                if subtype_name in subfolders[j][0]:
+                    print("subtype: ", str(subtype_name))
+                    if not os.path.exists(folder + '/' + subtype_name + '/results'):
+                        print("making dir ", folder + '/' + subtype_name  + '/results')
+                        os.mkdir(folder + '/' + subtype_name + '/results')
+                    print(subfolders[j][2])
+                    subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[j][2]]
+                    print('conditions: ', subtype_conditions)
+                    subtypes.append(Subtype(subtype_name, subtype_conditions))
+                    break
         return subtypes
 
     def get_subtype(self, subtype_name):
@@ -90,9 +96,13 @@ class BiomarkerFinder(object):
         sheet['meanA'] = cond1.mean(axis=1) # mean of cond1
         sheet['meanB'] = cond2.mean(axis=1) # mean of cond2
         filtered = sheet[~((sheet['meanA'] < 50000) & (sheet['meanB'] < 50000))]
+        print("spreadsheet %s contains %d entries after cutoffs" % (filename, len(filtered)))
         filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
         filtered = filtered.set_index('Accession')
+        new_filename = filename.split('/')[-1]
+        print(new_filename)
+        filtered.to_csv(new_filename)
         return filtered
 
     
@@ -122,7 +132,7 @@ class BiomarkerFinder(object):
                 potential_biomarkers.append(row)
         return potential_biomarkers
 
-    def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', output=False, out_filename=None):
+    def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', only=False, out_filename=None):
         subtype = self.type.get_subtype(subtype_name)
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name1:
@@ -130,22 +140,27 @@ class BiomarkerFinder(object):
             elif subtype.condition_names[i] == condition_name2:
                 other_condition = subtype.conditions[i]
         potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
-        if output:
-            self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
+        if only:
+            if out_filename:
+                self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
+            else:
+                self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers)
             print("found %d potential biomarkers " % (len(potential_biomarkers)))
         return potential_biomarkers
 
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
         if subtype_name in other_subtypes:
             raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
+        subtype = self.type.get_subtype(subtype_name)
         # from flow diagram- Control is group A - which corresponds to meanA 
         # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
         # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
-        compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2)
+        potential_biomarkers = self.compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2)
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
             st = self.type.get_subtype(st_name)
+            print("comparing %s to %s" % (subtype_name, st_name))
             for i, condition in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
                     to_compare.append(condition)

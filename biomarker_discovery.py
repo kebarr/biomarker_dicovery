@@ -19,7 +19,7 @@ def run_analysis(input_folder, condition1, condition2, subtype, flowchart, outpu
     bf = BiomarkerFinder(input_folder)
     print("data initialised, running flowchart %s" % (flowchart))
     if flowchart == "basic":
-        bf.compare_two_conditions_in_same_subtype(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output)
+        bf.compare_two_conditions_in_same_subtype(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output, only=True)
     elif flowchart == "all":
         bf.find_diagnosis_biomarkers(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output)
 
