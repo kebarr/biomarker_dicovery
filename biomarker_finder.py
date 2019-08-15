@@ -49,10 +49,10 @@ class Type(object): # e.g. type of cancer. root folder
         for i in range(len(subfolders[0][1])):
             # name of subtype, i.e. folder with condition sheets in it 
             subtype_name = subfolders[0][1][i]
-            print(subtype_name)
-            if not os.path.exists(subfolders[i+1][0] + '/results'):
-                print("making dir ", subfolders[i+1][0] + '/results')
-                os.mkdir(subfolders[i+1][0] + '/results')
+            print(subtype_name, " i: ", i)
+            if not os.path.exists(folder + '/' + subtype_name + '/results'):
+                print("making dir ", folder + '/' + subtype_name  + '/results')
+                os.mkdir(folder + '/' + subtype_name + '/results')
             print(subfolders[i+1][2])
             subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[i+1][2]]
             print('conditions: ', subtype_conditions)
@@ -125,15 +125,18 @@ class BiomarkerFinder(object):
                 potential_biomarkers.append(row)
         return potential_biomarkers
 
-    def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2'):
+    def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', output=False, out_filename=None):
         subtype = self.type.get_subtype(subtype_name)
+        print(subtype_name)
+        print(subtype.condition_names)
         for i in range(len(subtype.conditions)):
-            print(subtype.condition_names[i])
             if subtype.condition_names[i] == condition_name1:
                 condition = subtype.conditions[i]
             elif subtype.condition_names[i] == condition_name2:
                 other_condition = subtype.conditions[i]
         potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
+        if output:
+            self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
         return potential_biomarkers
 
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
@@ -182,9 +185,9 @@ class BiomarkerFinder(object):
                 else:
                     to_compare = subtype.conditions[:-1]
                 to_compare.extend(to_compare_other_subtypes)
+                potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
                 print(len(to_compare))
                 potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
-                # ones we have excluded are those indexes in sheet that are not in potential biomarkers
                 # ideally want ones that are excluded based on comparison with others only, 
                 excluded = condition[~condition.index.isin(potential_biomarkers.index)]
                 subtype.potential_biomarkers.append(potential_biomarkers)
