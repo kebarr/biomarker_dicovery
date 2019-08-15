@@ -46,7 +46,6 @@ class Type(object): # e.g. type of cancer. root folder
         subtypes = []
         print(subfolders)
         for i in range(len(subfolders[0][1])):
-            # still wrong!!! because it adds results, this changes index
             # name of subtype, i.e. folder with condition sheets in it 
             subtype_name = subfolders[0][1][i]
             for j in range(1, len(subfolders)):
@@ -100,9 +99,6 @@ class BiomarkerFinder(object):
         filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
         filtered = filtered.set_index('Accession')
-        new_filename = filename.split('/')[-1]
-        print(new_filename)
-        filtered.to_csv(new_filename)
         return filtered
 
     
@@ -111,6 +107,7 @@ class BiomarkerFinder(object):
         for df in other_conditions:
             biomarkers_in_other_conditions.extend(list(df.index))
         potential_biomarkers = condition_of_interest[~condition_of_interest.index.isin(biomarkers_in_other_conditions)]
+        print(potential_biomarkers.index)
         print("found %d proteins not present in other condition" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
         print("%d proteins shared between condition of interest and others" % (len(shared_proteins)))
@@ -121,15 +118,22 @@ class BiomarkerFinder(object):
             accept = True
             for df in other_conditions:
                 try:
-                    expr_other = shared_proteins.loc[i]['up/down']
+                    expr_other = df.loc[i]['up/down']
+                    if i == u'FCN2_HUMAN':
+                        print(expr_other, expr, accept)
                     if expr == expr_other:
+                        print(i)
                         # shared expression found so don't use as biomarker
                         accept = False
                         break
                 except:
                     pass
+            if i == u'FCN2_HUMAN':
+                    print(expr_other, accept)
             if accept == True:
-                potential_biomarkers.append(row)
+                print("appending", row)
+                potential_biomarkers = potential_biomarkers.append(row)
+                print(potential_biomarkers.shape)
         return potential_biomarkers
 
     def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', only=False, out_filename=None):
