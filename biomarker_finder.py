@@ -43,17 +43,14 @@ class Type(object): # e.g. type of cancer. root folder
     def walk_folder(self):
         folder = self.folder_name
         subfolders = [x for x in os.walk(folder)]
-        print(subfolders)
-        print(subfolders[0][1])
         subtypes = []
         for i in range(len(subfolders[0][1])):
             # name of subtype, i.e. folder with condition sheets in it 
             subtype_name = subfolders[0][1][i]
-            print(subtype_name, " i: ", i)
+            print("subtype: ", str(subtype_name))
             if not os.path.exists(folder + '/' + subtype_name + '/results'):
                 print("making dir ", folder + '/' + subtype_name  + '/results')
                 os.mkdir(folder + '/' + subtype_name + '/results')
-            print(subfolders[i+1][2])
             subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[i+1][2]]
             print('conditions: ', subtype_conditions)
             subtypes.append(Subtype(subtype_name, subtype_conditions))
@@ -74,7 +71,7 @@ class BiomarkerFinder(object):
 
     def prepare_data(self):
         for subtype in self.type.subtypes:
-            print(subtype.name)
+            print("preparing %s data" % subtype.name)
             for condition in subtype.condition_names:
                 spreadsheet_filename = self.type.folder_name + '/' + subtype.name + '/' + subtype.name + ' ' + condition + '.xlsx'
                 spreadsheet = self.prepare_spreadsheet(spreadsheet_filename)
@@ -104,9 +101,9 @@ class BiomarkerFinder(object):
         for df in other_conditions:
             biomarkers_in_other_conditions.extend(list(df.index))
         potential_biomarkers = condition_of_interest[~condition_of_interest.index.isin(biomarkers_in_other_conditions)]
-        print("len potential biomarkers: %d" % (len(potential_biomarkers)))
+        print("found %d proteins not present in other condition" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
-        print("len shared_proteins: %d" % (len(shared_proteins)))
+        print("%d proteins shared between condition of interest and others" % (len(shared_proteins)))
         # more compilcated with list of dataframes
         for i, row in shared_proteins.iterrows():
             expr = row['up/down']
@@ -127,8 +124,6 @@ class BiomarkerFinder(object):
 
     def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', output=False, out_filename=None):
         subtype = self.type.get_subtype(subtype_name)
-        print(subtype_name)
-        print(subtype.condition_names)
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name1:
                 condition = subtype.conditions[i]
@@ -137,6 +132,7 @@ class BiomarkerFinder(object):
         potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
         if output:
             self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
+            print("found %d potential biomarkers " % (len(potential_biomarkers)))
         return potential_biomarkers
 
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
@@ -146,19 +142,15 @@ class BiomarkerFinder(object):
         # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
         # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
         compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2)
-        print(len(potential_biomarkers))
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
             st = self.type.get_subtype(st_name)
-            #conditions_to_check = set(other_conditions).union(set(st.condition_names))
-            #print(len(conditions_to_check))
             for i, condition in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
                     to_compare.append(condition)
         potential_biomarkers = self.find_potential_biomarkers(potential_biomarkers, to_compare)
-        print(len(potential_biomarkers))
-        print(potential_biomarkers)
+        print("found %d potential diagnosis biomarkers " % (len(potential_biomarkers)))
         subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
 
@@ -169,6 +161,7 @@ class BiomarkerFinder(object):
         potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
         out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up/down']]
+        out_df.set_index('Gene name', drop=False)
         print(out_df.head())
         out_df.to_csv(out_filename)
 
@@ -176,17 +169,14 @@ class BiomarkerFinder(object):
     def find_all_potential_biomarkers(self):
         for i, subtype in enumerate(self.type.subtypes):
             other_subtypes = [st for j, st in enumerate(self.type.subtypes) if j != i]
-            print("len other subtypes: %d " % len(other_subtypes))
             to_compare_other_subtypes = [cond for st in other_subtypes for cond in st.conditions]
             for k, condition in enumerate(subtype.conditions):
-                print('k ', k, ' len condition: ', len(condition))
                 if k != len(subtype.conditions) - 1:
                     to_compare = subtype.conditions[:k] + subtype.conditions[k+1:]
                 else:
                     to_compare = subtype.conditions[:-1]
                 to_compare.extend(to_compare_other_subtypes)
                 potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
-                print(len(to_compare))
                 potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
                 # ideally want ones that are excluded based on comparison with others only, 
                 excluded = condition[~condition.index.isin(potential_biomarkers.index)]
