@@ -125,12 +125,7 @@ class BiomarkerFinder(object):
                 potential_biomarkers.append(row)
         return potential_biomarkers
 
-    def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
-        if subtype_name in other_subtypes:
-            raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
-        # from flow diagram- Control is group A - which corresponds to meanA 
-        # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
-        # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
+    def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2'):
         subtype = self.type.get_subtype(subtype_name)
         for i in range(len(subtype.conditions)):
             print(subtype.condition_names[i])
@@ -139,6 +134,15 @@ class BiomarkerFinder(object):
             elif subtype.condition_names[i] == condition_name2:
                 other_condition = subtype.conditions[i]
         potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
+        return potential_biomarkers
+
+    def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
+        if subtype_name in other_subtypes:
+            raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
+        # from flow diagram- Control is group A - which corresponds to meanA 
+        # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
+        # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
+        compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2)
         print(len(potential_biomarkers))
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
@@ -199,3 +203,7 @@ class BiomarkerFinder(object):
             sheet_name = 'excluded_' + str(i) + sheet_name_string
             df.to_excel(writer, sheet_name=sheet_name)
         writer.save()
+
+
+
+# run with gene game, not accession, as accession code can change!
