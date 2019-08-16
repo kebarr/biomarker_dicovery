@@ -166,6 +166,24 @@ class BiomarkerFinder(object):
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
         return potential_biomarkers
 
+
+    def find_potential_monitoring_biomarkers(self, subtype_name='Subtype1', condition_name='Condition4', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
+        if subtype_name in other_subtypes:
+            raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
+        subtype = self.type.get_subtype(subtype_name)
+        for i in range(len(subtype.conditions)):
+            if subtype.condition_names[i] == condition_name:
+                condition = subtype.conditions[i]
+        to_compare = []
+        # now check these against subtypes 2 and 3, conditions 1-3
+        for st_name in other_subtypes:
+            st = self.type.get_subtype(st_name)
+            print("comparing %s to %s" % (subtype_name, st_name))
+            for i, condition in enumerate(st.conditions):
+                if st.condition_names[i] in other_conditions:
+                    to_compare.append(condition)
+        potential_biomarkers = self.find_potential_biomarkers(condition, to_compare) 
+
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
             out_filename = self.type.folder_name + '/' + subtype_name + '/results/' + subtype_name + ' ' + condition_name + '_potential_biomarkers.csv'
@@ -175,25 +193,6 @@ class BiomarkerFinder(object):
         out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up/down']]
         out_df.set_index('Gene name', drop=False)
         out_df.to_csv(out_filename)
-
-    # this doesn't actually represent flow diagram... it just does all against all comparison
-    def find_all_potential_biomarkers(self):
-        for i, subtype in enumerate(self.type.subtypes):
-            other_subtypes = [st for j, st in enumerate(self.type.subtypes) if j != i]
-            to_compare_other_subtypes = [cond for st in other_subtypes for cond in st.conditions]
-            for k, condition in enumerate(subtype.conditions):
-                if k != len(subtype.conditions) - 1:
-                    to_compare = subtype.conditions[:k] + subtype.conditions[k+1:]
-                else:
-                    to_compare = subtype.conditions[:-1]
-                to_compare.extend(to_compare_other_subtypes)
-                potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
-                potential_biomarkers = self.find_potential_biomarkers(condition, to_compare)
-                # ideally want ones that are excluded based on comparison with others only, 
-                excluded = condition[~condition.index.isin(potential_biomarkers.index)]
-                subtype.potential_biomarkers.append(potential_biomarkers)
-                self.potential_biomarkers.append(potential_biomarkers)
-                self.excluded.append(excluded)
 
     def output(self, output_filename):
         # output potential biomarkers and excluded
