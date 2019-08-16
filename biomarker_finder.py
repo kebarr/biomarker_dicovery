@@ -107,7 +107,6 @@ class BiomarkerFinder(object):
         for df in other_conditions:
             biomarkers_in_other_conditions.extend(list(df.index))
         potential_biomarkers = condition_of_interest[~condition_of_interest.index.isin(biomarkers_in_other_conditions)]
-        print(potential_biomarkers.index)
         print("found %d proteins not present in other condition" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
         print("%d proteins shared between condition of interest and others" % (len(shared_proteins)))
@@ -120,7 +119,6 @@ class BiomarkerFinder(object):
                 try:
                     expr_other = df.loc[i]['up/down']
                     if expr == expr_other:
-                        print(i)
                         # shared expression found so don't use as biomarker
                         accept = False
                         break
@@ -166,6 +164,7 @@ class BiomarkerFinder(object):
         print("found %d potential diagnosis biomarkers " % (len(potential_biomarkers)))
         subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
+        return potential_biomarkers
 
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
@@ -175,7 +174,6 @@ class BiomarkerFinder(object):
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
         out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up/down']]
         out_df.set_index('Gene name', drop=False)
-        print(out_df.head())
         out_df.to_csv(out_filename)
 
     # this doesn't actually represent flow diagram... it just does all against all comparison
@@ -249,14 +247,15 @@ class CompareTypes(object):
             print(len(to_compare))
             print(pb.head())
             pb_final = self.types[0].find_potential_biomarkers(pb, to_compare)
-            print("found %d potential biomarkers after comparing %s to other types" % (len(pb_final), types[i].folder_name))
+            print("found %d potential biomarkers after comparing %s to other types" % (len(pb_final), self.types[i].type.folder_name))
+            potential_biomarkers_final.append(pb_final)
         self.potential_biomarkers_final = potential_biomarkers_final
         self._output_final_result()
 
     def _output_final_result(self):
-        out_file_base = self.out_folder_name + '/' + self.out_file_prefix + '_' + final + '_'
+        out_file_base = self.out_folder_name + '/' + self.out_file_prefix + '_final_'
         for i, t in enumerate(self.types):
             subtype_name = t.type.folder_name
             out_filename = out_file_base + '_' + subtype_name + '.csv'
             print("saving results to %s" % (out_filename))
-            self.potential_biomarkers_final.to_csv(out_filename)
+            self.potential_biomarkers_final[i].to_csv(out_filename)
