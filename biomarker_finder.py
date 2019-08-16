@@ -174,15 +174,21 @@ class BiomarkerFinder(object):
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name:
                 condition = subtype.conditions[i]
+        print(condition.head())
+        print(len(condition))
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
             st = self.type.get_subtype(st_name)
             print("comparing %s to %s" % (subtype_name, st_name))
-            for i, condition in enumerate(st.conditions):
+            for i, c in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
-                    to_compare.append(condition)
+                    to_compare.append(c)
         potential_biomarkers = self.find_potential_biomarkers(condition, to_compare) 
+        subtype.add_potential_biomarkers(condition_name, potential_biomarkers)
+        print(potential_biomarkers.head())
+        if len(potential_biomarkers) > 0:
+            self.write_potential_biomarkers_to_file(subtype_name, condition_name, potential_biomarkers, out_filename)
 
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
