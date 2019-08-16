@@ -119,8 +119,6 @@ class BiomarkerFinder(object):
             for df in other_conditions:
                 try:
                     expr_other = df.loc[i]['up/down']
-                    if i == u'FCN2_HUMAN':
-                        print(expr_other, expr, accept)
                     if expr == expr_other:
                         print(i)
                         # shared expression found so don't use as biomarker
@@ -128,12 +126,8 @@ class BiomarkerFinder(object):
                         break
                 except:
                     pass
-            if i == u'FCN2_HUMAN':
-                    print(expr_other, accept)
             if accept == True:
-                print("appending", row)
                 potential_biomarkers = potential_biomarkers.append(row)
-                print(potential_biomarkers.shape)
         return potential_biomarkers
 
     def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', only=False, out_filename=None):
@@ -218,4 +212,46 @@ class BiomarkerFinder(object):
 
 
 
-# run with gene game, not accession, as accession code can change!
+class CompareTypes(object):
+    def __init__(self, folder_names, out_folder_name=None, out_file_prefix=None):
+        self.folder_names = folder_names
+        self.out_folder_name = out_folder_name
+        self.out_file_prefix = out_file_prefix
+        if not os.path.exists(out_folder_name):
+                print("making directory %s " % out_folder_name)
+                os.mkdir(out_folder_name)
+        self.prepare_data()
+
+    def prepare_data(self):
+        types = []
+        for folder_name in self.folder_names:
+            t = BiomarkerFinder(folder_name)
+            types.append(t)
+        self.types = types
+
+    def find_biomarkers_for_each_type(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
+        out_file_base = self.out_folder_name + '/' + self.out_file_prefix
+        potential_biomarkers = []
+        for t in self.types:
+            subtype_name = t.type.folder_name
+            out_filename = out_file_base + '_' + subtype_name + '.csv'
+            db = t.find_diagnosis_biomarkers(subtype_name, condition_name1, condition_name2, other_subtypes, other_conditions, out_filename)
+            potential_biomarkers.append(db)
+        self.potential_biomarkers = potential_biomarkers
+
+    def compare_between_types(self):
+        # logic should be same as within types
+        potential_biomarkers_final = []
+        for i, pb in enumerate(self.potential_biomarkers):
+            to_compare = self.potential_biomarkers[:i] + self.potential_biomarkers[i+1:]
+            pb_final = self.types[0].find_potential_biomarkers(pb, to_compare)
+            print("found %d potential biomarkers after comparing %s to other types" % (len(pb_final), types[i].folder_name))
+        self.potential_biomarkers_final = potential_biomarkers_final
+        self._output_final_result()
+
+    def _output_final_result(self):
+        out_file_base = self.out_folder_name + '/' + self.out_file_prefix + '_' + final + '_'
+        for i, t in enumerate(self.types):
+            subtype_name = t.type.folder_name
+            out_filename = out_file_base + '_' + subtype_name + '.csv'
+            self.potential_biomarkers_final.to_csv(out_filename)
