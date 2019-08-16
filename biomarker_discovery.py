@@ -1,37 +1,27 @@
 import click # command liine options
 
-from biomarker_finder import BiomarkerFinder, CompareTypes
+from biomarker_finder import BiomarkerFinder
 # source ~/python3/bin/activate - for python 3
 # for now write as command line with input and output names specified
 
 # in input option, nargs is number of input files, we have 4. type tells it its a filepath.
 # merge input_folder and types into one
 @click.command() 
-@click.option("--input_folder", "-i", help="Folder containing input data, expected to contain folders called 'Subtype1' etc, which then contain spreadsheets with names 'Subtype1 Condition1' etc") 
+@click.option("--input_folder", "-i", help="Folder containing input data, expected to contain folders called 'Subtype1' etc, which then contain spreadsheets with names 'Subtype1 Condition1' etc", required=True) 
 @click.option("--output", "-o", help="Output filename, if you want a different name/location than the default, used as prefix if comparing between types")
 @click.option("--condition1", "-c", help="Condition you want to find biomarkers for", default="Condition1")
 @click.option("--condition2", "-k", help="Other condition in subtype that you want to compare against", default="Condition2")
 @click.option("--subtype", "-s", help="Subtype you want to find biomarkers for", default="Subtype1")
 @click.option("--flowchart", "-f", help="flowchart logic if comparing between types, can either be basic (default), comparing between two conditions in one subtype, or 'all', which additionally compares the other subtypes", type=click.Choice(['basic', 'all']), default="basic")
-@click.option("--types", "-t", help="if comparing between types, use this option once for each type, specifying the root folder of the type", multiple=True)
-@click.option("--multitype", "-m", help="Flag to indicate comparison between types rather than within types", is_flag=True)
-@click.option("--results_folder", "-r", help="Folder name for results when comparing beteen types")
-def run_analysis(input_folder, condition1, condition2, subtype, flowchart, output=None, multitype=False, types=[], results_folder=''):
+def run_analysis(input_folder, condition1, condition2, subtype, flowchart, output=None):
     """Run the biomarker discovery analysis"""
-    if multitype:
-        print(types)
-        print("intitalising data... comparing between types")
-        ct = CompareTypes(types, results_folder, output)
-        print("data initialised, starting comparison")
-        ct.compare_between_types()
-    else:
-        print("intitalising data...")
-        bf = BiomarkerFinder(input_folder)
-        print("data initialised, running flowchart %s" % (flowchart))
-        if flowchart == "basic":
-            bf.compare_two_conditions_in_same_subtype(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output, only=True)
-        elif flowchart == "all":
-            bf.find_diagnosis_biomarkers(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output)
+    print("intitalising data...")
+    bf = BiomarkerFinder(input_folder)
+    print("data initialised, running flowchart %s" % (flowchart))
+    if flowchart == "basic":
+        bf.compare_two_conditions_in_same_subtype(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output, only=True)
+    elif flowchart == "all":
+        bf.find_diagnosis_biomarkers(subtype_name=subtype, condition_name1=condition1, condition_name2=condition2, out_filename=output)
 
 # don't think adding button to excel will work so try anf make an executable with a little GUI
 # https://docs.python-guide.org/shipping/freezing/
