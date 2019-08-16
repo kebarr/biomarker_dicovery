@@ -229,21 +229,25 @@ class CompareTypes(object):
             types.append(t)
         self.types = types
 
-    def find_biomarkers_for_each_type(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
+    def find_biomarkers_for_each_type(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3']):
         out_file_base = self.out_folder_name + '/' + self.out_file_prefix
         potential_biomarkers = []
         for t in self.types:
-            subtype_name = t.type.folder_name
+            type_name = t.type.folder_name
             out_filename = out_file_base + '_' + subtype_name + '.csv'
             db = t.find_diagnosis_biomarkers(subtype_name, condition_name1, condition_name2, other_subtypes, other_conditions, out_filename)
             potential_biomarkers.append(db)
         self.potential_biomarkers = potential_biomarkers
 
-    def compare_between_types(self):
+    def compare_between_types(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3']):
+        print("finding potential biomarkers within types")
+        self.find_biomarkers_for_each_type(subtype_name, condition_name1, condition_name2, other_subtypes, other_conditions)
         # logic should be same as within types
         potential_biomarkers_final = []
         for i, pb in enumerate(self.potential_biomarkers):
             to_compare = self.potential_biomarkers[:i] + self.potential_biomarkers[i+1:]
+            print(len(to_compare))
+            print(pb.head())
             pb_final = self.types[0].find_potential_biomarkers(pb, to_compare)
             print("found %d potential biomarkers after comparing %s to other types" % (len(pb_final), types[i].folder_name))
         self.potential_biomarkers_final = potential_biomarkers_final
@@ -254,4 +258,5 @@ class CompareTypes(object):
         for i, t in enumerate(self.types):
             subtype_name = t.type.folder_name
             out_filename = out_file_base + '_' + subtype_name + '.csv'
+            print("saving results to %s" % (out_filename))
             self.potential_biomarkers_final.to_csv(out_filename)
