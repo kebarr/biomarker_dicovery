@@ -98,7 +98,35 @@ class BiomarkerFinder(object):
         print("spreadsheet %s contains %d entries after cutoffs" % (filename, len(filtered)))
         filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
+        if filename.endswith("Subtype1 Condition4.xlsx"):
+            print(list(filtered['Accession']), len(list(filtered['Accession'])))
+            print("A0A109PSY4_HUMAN:", filtered.loc[filtered['Accession']== 'A0A109PSY4_HUMAN'])
+            print("LV301_HUMAN", filtered.loc[filtered['Accession']== 'LV301_HUMAN'])
+            print("A0A0C4DG89_HUMAN", filtered.loc[filtered['Accession']== 'A0A0C4DG89_HUMAN'])
+            print("APOF_HUMAN", filtered.loc[filtered['Accession']== 'APOF_HUMAN'])
+            print("VP13D_HUMAN", filtered.loc[filtered['Accession']== 'VP13D_HUMAN'])
+            print("A5YAK2_HUMAN", filtered.loc[filtered['Accession']== 'A5YAK2_HUMAN'])
+            print("A1AG1_HUMAN", filtered.loc[filtered['Accession']== 'A1AG1_HUMAN'])
+            print("A0A024R6P0_HUMAN", filtered.loc[filtered['Accession']== 'A0A024R6P0_HUMAN'])
+            print("A0A1S5UZ07_HUMAN", filtered.loc[filtered['Accession']== 'A0A1S5UZ07_HUMAN'])
+            print("THRB_HUMAN", filtered.loc[filtered['Accession']== 'THRB_HUMAN'])
+            print("APOC4_HUMAN", filtered.loc[filtered['Accession']== 'APOC4_HUMAN'])
+        print("setting index !!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(len(filtered.index), filtered.index, list(filtered['Accession']))
         filtered = filtered.set_index('Accession')
+        print(len(filtered.index), filtered.index)
+        if filename.endswith("Subtype1 Condition4.xlsx"):
+            print("A0A109PSY4_HUMAN:", filtered.loc[u'A0A109PSY4_HUMAN'])
+            print("LV301_HUMAN", filtered.loc[u'LV301_HUMAN'])
+            print("A0A0C4DG89_HUMAN", filtered.loc[u'A0A0C4DG89_HUMAN'])
+            print("APOF_HUMAN", filtered.loc[u'APOF_HUMAN'])
+            print("VP13D_HUMAN", filtered.loc[u'VP13D_HUMAN'])
+            print("A5YAK2_HUMAN", filtered.loc[u'A5YAK2_HUMAN'])
+            print("A1AG1_HUMAN", filtered.loc[u'A1AG1_HUMAN'])
+            print("A0A024R6P0_HUMAN", filtered.loc[u'A0A024R6P0_HUMAN'])
+            print("A0A1S5UZ07_HUMAN", filtered.loc[u'A0A1S5UZ07_HUMAN'])
+            print("THRB_HUMAN", filtered.loc[u'THRB_HUMAN'])
+            print("APOC4_HUMAN", filtered.loc[u'APOC4_HUMAN'])
         return filtered
 
     
@@ -118,6 +146,8 @@ class BiomarkerFinder(object):
             for df in other_conditions:
                 try:
                     expr_other = df.loc[i]['up/down']
+                    print(row)
+                    print(expr_other)
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
                         accept = False
@@ -174,8 +204,7 @@ class BiomarkerFinder(object):
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name:
                 condition = subtype.conditions[i]
-        print(condition.head())
-        print(len(condition))
+        print(list(condition.index)) # all missed ones pass filtering
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
