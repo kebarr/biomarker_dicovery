@@ -98,24 +98,8 @@ class BiomarkerFinder(object):
         print("spreadsheet %s contains %d entries after cutoffs" % (filename, len(filtered)))
         filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
-        if filename.endswith("Subtype1 Condition4.xlsx"):
-            print(list(filtered['Accession']), len(list(filtered['Accession'])))
-            print("A0A109PSY4_HUMAN:", filtered.loc[filtered['Accession']== 'A0A109PSY4_HUMAN'])
-            print("LV301_HUMAN", filtered.loc[filtered['Accession']== 'LV301_HUMAN'])
-            print("A0A0C4DG89_HUMAN", filtered.loc[filtered['Accession']== 'A0A0C4DG89_HUMAN'])
-            print("APOF_HUMAN", filtered.loc[filtered['Accession']== 'APOF_HUMAN'])
-            print("VP13D_HUMAN", filtered.loc[filtered['Accession']== 'VP13D_HUMAN'])
-            print("A5YAK2_HUMAN", filtered.loc[filtered['Accession']== 'A5YAK2_HUMAN'])
-            print("A1AG1_HUMAN", filtered.loc[filtered['Accession']== 'A1AG1_HUMAN'])
-            print("A0A024R6P0_HUMAN", filtered.loc[filtered['Accession']== 'A0A024R6P0_HUMAN'])
-            print("A0A1S5UZ07_HUMAN", filtered.loc[filtered['Accession']== 'A0A1S5UZ07_HUMAN'])
-            print("THRB_HUMAN", filtered.loc[filtered['Accession']== 'THRB_HUMAN'])
-            print("APOC4_HUMAN", filtered.loc[filtered['Accession']== 'APOC4_HUMAN'])
-        print("setting index !!!!!!!!!!!!!!!!!!!!!!!!!")
-        print(len(filtered.index), filtered.index, list(filtered['Accession']))
         filtered = filtered.set_index('Accession')
-        print(len(filtered.index), filtered.index)
-        if filename.endswith("Subtype1 Condition4.xlsx"):
+        """         if filename.endswith("Subtype1 Condition4.xlsx"):
             print("A0A109PSY4_HUMAN:", filtered.loc[u'A0A109PSY4_HUMAN'])
             print("LV301_HUMAN", filtered.loc[u'LV301_HUMAN'])
             print("A0A0C4DG89_HUMAN", filtered.loc[u'A0A0C4DG89_HUMAN'])
@@ -126,7 +110,7 @@ class BiomarkerFinder(object):
             print("A0A024R6P0_HUMAN", filtered.loc[u'A0A024R6P0_HUMAN'])
             print("A0A1S5UZ07_HUMAN", filtered.loc[u'A0A1S5UZ07_HUMAN'])
             print("THRB_HUMAN", filtered.loc[u'THRB_HUMAN'])
-            print("APOC4_HUMAN", filtered.loc[u'APOC4_HUMAN'])
+            print("APOC4_HUMAN", filtered.loc[u'APOC4_HUMAN']) """
         return filtered
 
     
@@ -146,8 +130,6 @@ class BiomarkerFinder(object):
             for df in other_conditions:
                 try:
                     expr_other = df.loc[i]['up/down']
-                    print(row)
-                    print(expr_other)
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
                         accept = False
@@ -204,7 +186,6 @@ class BiomarkerFinder(object):
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name:
                 condition = subtype.conditions[i]
-        print(list(condition.index)) # all missed ones pass filtering
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
@@ -215,7 +196,6 @@ class BiomarkerFinder(object):
                     to_compare.append(c)
         potential_biomarkers = self.find_potential_biomarkers(condition, to_compare) 
         subtype.add_potential_biomarkers(condition_name, potential_biomarkers)
-        print(potential_biomarkers.head())
         if len(potential_biomarkers) > 0:
             self.write_potential_biomarkers_to_file(subtype_name, condition_name, potential_biomarkers, out_filename)
 
@@ -241,3 +221,22 @@ class BiomarkerFinder(object):
             sheet_name = 'excluded_' + str(i) + sheet_name_string
             df.to_excel(writer, sheet_name=sheet_name)
         writer.save()
+
+    # https://github.com/reneshbedre/bioinfokit/blob/master/bioinfokit/visuz.py
+    # actually just steal his function so i can add this to class without saving data to file and reopening
+    def volcano(self, d, lfc="Log2 fold change", pv="Anova (p)", lfc_thr=2, pv_thr=0.05, plot_name='volcano.png', plot_title = "Subtype1 Condition1"):
+        # load csv data file
+        d.loc[(d[lfc] >= 2) & (d[pv] < pv_thr), 'color'] = "green"  # upregulated
+        d.loc[(d[lfc] <= -2) & (d[pv] < pv_thr), 'color'] = "red"  # downregulated
+        d['color'].fillna('grey', inplace=True)  # intermediate
+        d[pv].replace({0:0.000000001}) # hack to avoid infinite values
+        d['logpv'] = -(np.log10(d[pv]))
+        # plot
+        plt.scatter(d[lfc], d['logpv'], c=d['color'])
+        plt.xlabel('log2 Fold Change', fontsize=15, fontname="sans-serif", fontweight="bold")
+        plt.ylabel('-log10(P-value)', fontsize=15, fontname="sans-serif", fontweight="bold")
+        plt.xticks(fontsize=12, fontname="sans-serif")
+        plt.yticks(fontsize=12, fontname="sans-serif")
+        plt.title(plot_title)
+        plt.savefig(plot_name, format='png', bbox_inches='tight', dpi=300)
+        plt.close()
