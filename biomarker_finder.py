@@ -69,7 +69,7 @@ class Type(object): # e.g. type of cancer. root folder
 
 class BiomarkerFinder(object):
     def __init__(self, folder_name):
-        self.excluded = []
+        self.discarded = {}
         self.potential_biomarkers = []
         self.type = Type(folder_name)
         self.prepare_data()
@@ -122,7 +122,8 @@ class BiomarkerFinder(object):
         print("found %d proteins not present in other condition" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
         print("%d proteins shared between condition of interest and others" % (len(shared_proteins)))
-        # more compilcated with list of dataframes
+        ## TODO- keep list of discarded ones
+        discarded = []
         for i, row in shared_proteins.iterrows():
             expr = row['up/down']
             # iterate over each df to compare expression, if expression is different in all, accept
@@ -132,22 +133,36 @@ class BiomarkerFinder(object):
                     expr_other = df.loc[i]['up/down']
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
-                        accept = False
+                        accept = False 
+                        discarded.append(i)
                         break
                 except:
                     pass
             if accept == True:
                 potential_biomarkers = potential_biomarkers.append(row)
-        return potential_biomarkers
+        return potential_biomarkers, discarded
 
     def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', only=False, out_filename=None):
         subtype = self.type.get_subtype(subtype_name)
+        self.discarded[subtype_name + condition_name1] = {}
         for i in range(len(subtype.conditions)):
             if subtype.condition_names[i] == condition_name1:
                 condition = subtype.conditions[i]
             elif subtype.condition_names[i] == condition_name2:
                 other_condition = subtype.conditions[i]
-        potential_biomarkers = self.find_potential_biomarkers(condition, [other_condition])
+        potential_biomarkers, discarded = self.find_potential_biomarkers(condition, [other_condition])
+        self.discarded[subtype_name + condition_name1][condition_name2] = discarded
+        if out_filename:
+            discared_filename = 'discarded_' + out_filename
+        else:
+            discarded_filename = 'discarded.txt'
+        with open(discarded_filename, 'a+') as f:
+            for key, value in self.dicarded:
+                f.write(key)
+                for key2, value2 in value:
+                    f.write(key2)
+                    for v in value2:
+                        f.write(v)
         if only:
             if out_filename:
                 self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
@@ -205,7 +220,9 @@ class BiomarkerFinder(object):
         potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
         potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
-        out_df = potential_biomarkers[['Gene name', 'Log2 fold change', 'Anova (p)', 'Description', 'up/down']]
+        potential_biomarkers['Anova (p)'].replace({0:0.000000001}) # hack to avoid infinite values
+        potential_biomarkers['-log 10 p'] = -(np.log10(potential_biomarkers['Anova (p)']))
+        out_df = potential_biomarkers[['Gene name', 'Max fold change', 'Log2 fold change', 'Anova (p)', '-log 10 p', 'Description', 'Highest mean condition']]
         out_df.set_index('Gene name', drop=False)
         out_df.to_csv(out_filename)
 
