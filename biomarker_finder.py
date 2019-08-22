@@ -54,7 +54,6 @@ class Type(object): # e.g. type of cancer. root folder
                     if not os.path.exists(folder + '/' + subtype_name + '/results'):
                         print("making dir ", folder + '/' + subtype_name  + '/results')
                         os.mkdir(folder + '/' + subtype_name + '/results')
-                    print(subfolders[j][2])
                     subtype_conditions = [x.split(' ')[1].split('.')[0] for x in subfolders[j][2]]
                     print('conditions: ', subtype_conditions)
                     subtypes.append(Subtype(subtype_name, subtype_conditions))
@@ -99,18 +98,6 @@ class BiomarkerFinder(object):
         filtered['up/down'] = np.where(filtered['Highest mean condition'] == 'Group A', 'down', 'up')
         filtered['Accession'] = filtered['Accession'].str.split(';', n=1, expand=True)[0]
         filtered = filtered.set_index('Accession')
-        """         if filename.endswith("Subtype1 Condition4.xlsx"):
-            print("A0A109PSY4_HUMAN:", filtered.loc[u'A0A109PSY4_HUMAN'])
-            print("LV301_HUMAN", filtered.loc[u'LV301_HUMAN'])
-            print("A0A0C4DG89_HUMAN", filtered.loc[u'A0A0C4DG89_HUMAN'])
-            print("APOF_HUMAN", filtered.loc[u'APOF_HUMAN'])
-            print("VP13D_HUMAN", filtered.loc[u'VP13D_HUMAN'])
-            print("A5YAK2_HUMAN", filtered.loc[u'A5YAK2_HUMAN'])
-            print("A1AG1_HUMAN", filtered.loc[u'A1AG1_HUMAN'])
-            print("A0A024R6P0_HUMAN", filtered.loc[u'A0A024R6P0_HUMAN'])
-            print("A0A1S5UZ07_HUMAN", filtered.loc[u'A0A1S5UZ07_HUMAN'])
-            print("THRB_HUMAN", filtered.loc[u'THRB_HUMAN'])
-            print("APOC4_HUMAN", filtered.loc[u'APOC4_HUMAN']) """
         return filtered
 
     
@@ -134,7 +121,7 @@ class BiomarkerFinder(object):
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
                         accept = False 
-                        discarded.append(i)
+                        discarded.append(df.loc[i])
                         break
                 except:
                     pass
@@ -152,17 +139,7 @@ class BiomarkerFinder(object):
                 other_condition = subtype.conditions[i]
         potential_biomarkers, discarded = self.find_potential_biomarkers(condition, [other_condition])
         self.discarded[subtype_name + condition_name1][condition_name2] = discarded
-        if out_filename:
-            discared_filename = 'discarded_' + out_filename
-        else:
-            discarded_filename = 'discarded.txt'
-        with open(discarded_filename, 'a+') as f:
-            for key, value in self.dicarded:
-                f.write(key)
-                for key2, value2 in value:
-                    f.write(key2)
-                    for v in value2:
-                        f.write(v)
+        self.output_discarded(discarded, out_filename)    
         if only:
             if out_filename:
                 self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
@@ -171,6 +148,22 @@ class BiomarkerFinder(object):
             print("found %d potential biomarkers " % (len(potential_biomarkers)))
         return potential_biomarkers
 
+    def output_discarded(self, discarded, out_filename=None):
+        if out_filename:
+            discarded_filename = 'discarded_' + out_filename
+        else:
+            discarded_filename = 'discarded.txt'
+        with open(discarded_filename, 'a+') as f:
+            for key, value in self.discarded.items():
+                f.write(key + "\n")
+                for key2, value2 in value.items():
+                    f.write(key2 + "\n")
+                    f.write(str(value2[0].index) + "\n")
+                    for v in value2:
+                        for k in v:
+                            f.write(k + ", ")
+                        f.write("\n")
+
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
         if subtype_name in other_subtypes:
             raise ValueError("Subtype to test %s in subtypes to compare, cannot compare against itself" % subtype_name)
@@ -178,7 +171,7 @@ class BiomarkerFinder(object):
         # from flow diagram- Control is group A - which corresponds to meanA 
         # potential biomarkers = condition vs control; is it in condition 2 vs control? if so, is expression the same?
         # if passed for that subtype, compare to conditions 1 to 3 of other subtypes in the same way. 
-        potential_biomarkers = self.compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2)
+        potential_biomarkers = self.compare_two_conditions_in_same_subtype(subtype_name=subtype_name, condition_name1=condition_name1, condition_name2=condition_name2, out_filename=out_filename)
         to_compare = []
         # now check these against subtypes 2 and 3, conditions 1-3
         for st_name in other_subtypes:
@@ -187,7 +180,7 @@ class BiomarkerFinder(object):
             for i, condition in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
                     to_compare.append(condition)
-        potential_biomarkers = self.find_potential_biomarkers(potential_biomarkers, to_compare)
+        potential_biomarkers, _ = self.find_potential_biomarkers(potential_biomarkers, to_compare) 
         print("found %d potential diagnosis biomarkers " % (len(potential_biomarkers)))
         subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
@@ -209,7 +202,7 @@ class BiomarkerFinder(object):
             for i, c in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
                     to_compare.append(c)
-        potential_biomarkers = self.find_potential_biomarkers(condition, to_compare) 
+        potential_biomarkers, _ = self.find_potential_biomarkers(condition, to_compare) 
         subtype.add_potential_biomarkers(condition_name, potential_biomarkers)
         if len(potential_biomarkers) > 0:
             self.write_potential_biomarkers_to_file(subtype_name, condition_name, potential_biomarkers, out_filename)
@@ -223,7 +216,7 @@ class BiomarkerFinder(object):
         potential_biomarkers['Anova (p)'].replace({0:0.000000001}) # hack to avoid infinite values
         potential_biomarkers['-log 10 p'] = -(np.log10(potential_biomarkers['Anova (p)']))
         out_df = potential_biomarkers[['Gene name', 'Max fold change', 'Log2 fold change', 'Anova (p)', '-log 10 p', 'Description', 'Highest mean condition']]
-        out_df.set_index('Gene name', drop=False)
+        out_df = out_df.set_index('Gene name', drop=False)
         out_df.to_csv(out_filename)
 
     def output(self, output_filename):

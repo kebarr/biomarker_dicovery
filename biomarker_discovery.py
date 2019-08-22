@@ -2,6 +2,7 @@ import click # command liine options
 
 from biomarker_finder import BiomarkerFinder
 # source ~/python3/bin/activate - for python 3
+# example usage: python biomarker_discovery.py -i "NSCLC (Adeno)" -f all -o test2.csv
 # for now write as command line with input and output names specified
 
 # in input option, nargs is number of input files, we have 4. type tells it its a filepath.
