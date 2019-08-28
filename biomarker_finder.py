@@ -119,12 +119,12 @@ class BiomarkerFinder(object):
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
                         accept = False
-                        discarded = discarded.append(condition_of_interest.loc[i])
+                        discarded = discarded.append(condition_of_interest.loc[i], sort=False)
                         break
                 except:
                     pass
             if accept == True:
-                potential_biomarkers = potential_biomarkers.append(row)
+                potential_biomarkers = potential_biomarkers.append(row, sort=False)
         return potential_biomarkers, discarded
 
     def compare_two_conditions_in_same_subtype(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', only=False, out_filename=None):
@@ -144,25 +144,6 @@ class BiomarkerFinder(object):
                 self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers)
             print("found %d potential biomarkers " % (len(potential_biomarkers)))
         return potential_biomarkers
-
-    def output_discarded(self, discarded, out_filename=None):
-        if out_filename:
-            discarded_filename = 'discarded_' + out_filename
-        else:
-            discarded_filename = 'discarded.txt'
-        with open(discarded_filename, 'a+') as f:
-            for key, value in self.discarded.items():
-                f.write(key + "\n")
-                for key2, value2 in value.items():
-                    print("################################")
-                    print(len(value2.index), value2.index)
-                    f.write(key2 + "\n")
-                    final = value2[~value2.index.isin(discarded)]
-                    # TODO: these are values in one we're not interested in, want them from base comparison
-                    final['Gene name'] = final['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
-                    final['Log2 fold change'] = np.log2(final['meanB']) - np.log2(final['meanA'])
-                    final['Log10 fold change'] = np.log10(final['meanB']) - np.log10(final['meanA'])
-                    final.to_csv(f)
 
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
         if subtype_name in other_subtypes:
@@ -186,7 +167,7 @@ class BiomarkerFinder(object):
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
         discarded_names = list(discarded.index)
         print(len(discarded_names), discarded_names)
-        self.output_discarded(discarded_names, out_filename)
+        self.output_discarded(other_subtypes, other_conditions, out_filename)
         return potential_biomarkers
 
 
@@ -209,6 +190,42 @@ class BiomarkerFinder(object):
         subtype.add_potential_biomarkers(condition_name, potential_biomarkers)
         if len(potential_biomarkers) > 0:
             self.write_potential_biomarkers_to_file(subtype_name, condition_name, potential_biomarkers, out_filename)
+
+    def output_discarded(self, other_subtypes, other_conditions, out_filename=None):
+        if out_filename:
+            discarded_filename = 'discarded_' + out_filename
+        else:
+            discarded_filename = 'discarded.txt'
+        with open(discarded_filename, 'a+') as f:
+            for key, value in self.discarded.items():
+                f.write(key + "\n") # this is discarded based on comparison between key (subtype + cond) and condition within same subtype (key2)
+                # need to exclude ones that would be discarded based on another subtype, so need to search other subtypes and conditions and see if it would also have been excluded based on that, and if so, do not output
+                for key2, value2 in value.items():
+                    print("################################")
+                    print(len(value2.index), value2.index)
+                    f.write(key2 + "\n")
+                    final = self.keep_in_discarded_output(value2, other_subtypes, other_conditions)
+                    # TODO: these are values in one we're not interested in, want them from base comparison
+                    final['Gene name'] = final['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
+                    final['Log2 fold change'] = np.log2(final['meanB']) - np.log2(final['meanA'])
+                    final['Log10 fold change'] = np.log10(final['meanB']) - np.log10(final['meanA'])
+                    final.to_csv(f)
+
+    def keep_in_discarded_output(self, discarded, other_subtypes, other_conditions):
+        to_check = pd.DataFrame()
+        for t in other_subtypes:
+            st = self.type.get_subtype(t)
+            for c in other_conditions:
+                c_st = st.get_condition(c)
+                to_check =  to_check.append(c_st, sort=False)
+        # need inner join on index, then ones with equal highest mean condition
+        in_common = discarded.join(to_check, how='inner', lsuffix='_A', rsuffix='_B')
+        print(len(in_common.index))
+        to_exclude = in_common[in_common['Highest mean condition_A'] == in_common['Highest mean condition_B']].index
+        print(len(to_exclude))
+        # to exclude should be ones that are also in other conditions, 
+        final = discarded[~discarded.index.isin(to_exclude)]
+        return final
 
     def write_potential_biomarkers_to_file(self, subtype_name, condition_name, potential_biomarkers, out_filename=None):
         if not out_filename:
@@ -258,3 +275,5 @@ class BiomarkerFinder(object):
 
 # need ones that would have been accepted based on comparisons with other subtypes, but are discarded due to comparison with condition 2
 # so make list of those discarded in other subtypes, and take those from condition2 that don't appear in this list
+# its already been discarded so, not in shared indices- so need to look in original data for each subtype.
+# so for each discarded row, need to find out if that row is present in other subtypes and conditions tested, and if so, whether the expression is the same
