@@ -101,7 +101,7 @@ class BiomarkerFinder(object):
         return filtered
 
     
-    def find_potential_biomarkers(self, condition_of_interest, other_conditions):
+    def find_potential_biomarkers(self, condition_of_interest, other_conditions, discarded=pd.DataFrame()):
         biomarkers_in_other_conditions = [] 
         for df in other_conditions:
             biomarkers_in_other_conditions.extend(list(df.index))
@@ -109,8 +109,6 @@ class BiomarkerFinder(object):
         print("found %d proteins not present in other condition" % (len(potential_biomarkers)))
         shared_proteins = condition_of_interest[condition_of_interest.index.isin(biomarkers_in_other_conditions)]
         print("%d proteins shared between condition of interest and others" % (len(shared_proteins)))
-        ## TODO- keep list of discarded ones
-        discarded = []
         for i, row in shared_proteins.iterrows():
             expr = row['up/down']
             # iterate over each df to compare expression, if expression is different in all, accept
@@ -120,8 +118,8 @@ class BiomarkerFinder(object):
                     expr_other = df.loc[i]['up/down']
                     if expr == expr_other:
                         # shared expression found so don't use as biomarker
-                        accept = False 
-                        discarded.append(df.loc[i])
+                        accept = False
+                        discarded = discarded.append(condition_of_interest.loc[i])
                         break
                 except:
                     pass
@@ -138,8 +136,7 @@ class BiomarkerFinder(object):
             elif subtype.condition_names[i] == condition_name2:
                 other_condition = subtype.conditions[i]
         potential_biomarkers, discarded = self.find_potential_biomarkers(condition, [other_condition])
-        self.discarded[subtype_name + condition_name1][condition_name2] = discarded
-        self.output_discarded(discarded, out_filename)    
+        self.discarded[subtype_name + condition_name1][condition_name2] = discarded 
         if only:
             if out_filename:
                 self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
@@ -157,12 +154,15 @@ class BiomarkerFinder(object):
             for key, value in self.discarded.items():
                 f.write(key + "\n")
                 for key2, value2 in value.items():
+                    print("################################")
+                    print(len(value2.index), value2.index)
                     f.write(key2 + "\n")
-                    f.write(str(value2[0].index) + "\n")
-                    for v in value2:
-                        for k in v:
-                            f.write(k + ", ")
-                        f.write("\n")
+                    final = value2[~value2.index.isin(discarded)]
+                    # TODO: these are values in one we're not interested in, want them from base comparison
+                    final['Gene name'] = final['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
+                    final['Log2 fold change'] = np.log2(final['meanB']) - np.log2(final['meanA'])
+                    final['Log10 fold change'] = np.log10(final['meanB']) - np.log10(final['meanA'])
+                    final.to_csv(f)
 
     def find_diagnosis_biomarkers(self, subtype_name='Subtype1', condition_name1='Condition1', condition_name2='Condition2', other_subtypes=['Subtype2', 'Subtype3'], other_conditions=['Condition1', 'Condition2', 'Condition3'], out_filename=None):
         if subtype_name in other_subtypes:
@@ -180,10 +180,13 @@ class BiomarkerFinder(object):
             for i, condition in enumerate(st.conditions):
                 if st.condition_names[i] in other_conditions:
                     to_compare.append(condition)
-        potential_biomarkers, _ = self.find_potential_biomarkers(potential_biomarkers, to_compare) 
+        potential_biomarkers, discarded = self.find_potential_biomarkers(potential_biomarkers, to_compare) 
         print("found %d potential diagnosis biomarkers " % (len(potential_biomarkers)))
         subtype.add_potential_biomarkers(condition_name1, potential_biomarkers)
         self.write_potential_biomarkers_to_file(subtype_name, condition_name1, potential_biomarkers, out_filename)
+        discarded_names = list(discarded.index)
+        print(len(discarded_names), discarded_names)
+        self.output_discarded(discarded_names, out_filename)
         return potential_biomarkers
 
 
@@ -213,6 +216,7 @@ class BiomarkerFinder(object):
         potential_biomarkers['Gene name'] = potential_biomarkers['Description'].str.split('GN=', expand=True)[1].str.split(" PE=", expand=True)[0] # i will likely go to hell for this
         potential_biomarkers['Description'] = potential_biomarkers['Description'].str.split('OS', 0, expand=True)[0] # get everything before 'OS'
         potential_biomarkers['Log2 fold change'] = np.log2(potential_biomarkers['meanB']) - np.log2(potential_biomarkers['meanA'])
+        potential_biomarkers['Log10 fold change'] = np.log10(potential_biomarkers['meanB']) - np.log10(potential_biomarkers['meanA'])
         potential_biomarkers['Anova (p)'].replace({0:0.000000001}) # hack to avoid infinite values
         potential_biomarkers['-log 10 p'] = -(np.log10(potential_biomarkers['Anova (p)']))
         out_df = potential_biomarkers[['Gene name', 'Max fold change', 'Log2 fold change', 'Anova (p)', '-log 10 p', 'Description', 'Highest mean condition']]
@@ -250,3 +254,7 @@ class BiomarkerFinder(object):
         plt.title(plot_title)
         plt.savefig(plot_name, format='png', bbox_inches='tight', dpi=300)
         plt.close()
+
+
+# need ones that would have been accepted based on comparisons with other subtypes, but are discarded due to comparison with condition 2
+# so make list of those discarded in other subtypes, and take those from condition2 that don't appear in this list
